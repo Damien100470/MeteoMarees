@@ -1,0 +1,42 @@
+name: Construire l'APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Compiler
+        run: gradle assembleRelease --no-daemon
+
+      - name: Renommer l'APK
+        run: cp app/build/outputs/apk/release/app-release.apk MeteoMarees.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MeteoMarees-apk
+          path: MeteoMarees.apk
+
+      - name: Publier dans les Releases (lien de téléchargement direct)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0-build${{ github.run_number }}
+          name: Météo Marées (build ${{ github.run_number }})
+          files: MeteoMarees.apk

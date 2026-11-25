@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b3a53">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Météo & Marées">
+<title>Météo & Marées</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:light dark;--bg:light-dark(#eef5f8,#071c28);--card:light-dark(#fff,#0d2b3c);--ink:light-dark(#0a2533,#e6f1f6);--mute:light-dark(#5a7482,#8fb0c0);--sea:#0b6e99;--deep:#0b3a53;--sun:#ffb627;--line:light-dark(#d7e5ec,#1b4258)}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Outfit,system-ui,sans-serif;overflow-x:clip}
+header{background:linear-gradient(170deg,#0b3a53,#0b6e99);color:#fff;padding:22px 18px 28px}
+header small{opacity:.8}
+.now{display:flex;align-items:center;gap:16px;margin-top:10px}
+.big{font-size:clamp(56px,16vw,80px);font-weight:700;line-height:1}
+.ico{font-size:52px;line-height:1}
+.desc{font-size:19px;font-weight:600}
+.facts{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:14px;opacity:.92}
+main{padding:0 12px 30px;max-width:720px;margin:-14px auto 0}
+.card{background:var(--card);border-radius:18px;padding:16px;margin-bottom:12px;box-shadow:0 2px 10px #0b3a5314}
+h2{font-size:18px;margin:0 0 10px}
+.hours{display:flex;overflow-x:auto;gap:4px;scroll-snap-type:x mandatory;padding-bottom:4px}
+.h{flex:none;width:58px;text-align:center;scroll-snap-align:start;font-size:14px}
+.h b{display:block;font-size:17px}.h .e{font-size:24px}
+.h .p{color:var(--sea);font-size:12px;min-height:18px}
+.day{display:grid;grid-template-columns:84px 32px 1fr 90px;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line);font-size:15px}
+.day:first-of-type{border-top:0}
+.bar{height:6px;border-radius:3px;background:var(--line);position:relative}
+.bar i{position:absolute;top:0;bottom:0;border-radius:3px;background:linear-gradient(90deg,#4fb3d9,var(--sun))}
+.t{text-align:right;white-space:nowrap}.t span{color:var(--mute)}
+select{font:16px Outfit,sans-serif;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);width:100%;min-height:44px;margin-bottom:12px}
+.fig{position:relative;height:170px}.fig svg{position:absolute;inset:0;width:100%;height:100%}
+.tides{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:12px}
+.td{border-radius:12px;padding:8px 10px;background:light-dark(#eaf4f8,#123447)}
+.td.hi{border-left:4px solid var(--sea)}.td.lo{border-left:4px solid #9bb8c6}
+.td b{font-size:20px;white-space:nowrap}.td div{font-size:13px;color:var(--mute)}
+.note{font-size:13px;color:var(--mute);margin:8px 0 0}
+button{font:600 15px Outfit,sans-serif;min-height:44px;padding:0 18px;border:0;border-radius:12px;background:var(--sea);color:#fff}
+button:focus-visible,select:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.err{color:#c1121f}
+</style>
+</head>
+<body>
+<header>
+  <small>Saint-Médard-en-Jalles · <span id="upd">chargement…</span></small>
+  <div class="now"><div class="ico" id="nIco">⏳</div><div><div class="big" id="nT">--°</div></div></div>
+  <div class="desc" id="nD">&nbsp;</div>
+  <div class="facts" id="nF"></div>
+</header>
+<main>
+  <section class="card"><h2>Prochaines heures</h2><div class="hours" id="hours"></div></section>
+  <section class="card"><h2>7 jours</h2><div id="days"></div></section>
+  <section class="card">
+    <h2>Marées</h2>
+    <select id="spot" aria-label="Lieu des marées"></select>
+    <div class="fig"><svg id="curve" aria-label="Courbe de marée"></svg></div>
+    <div class="tides" id="tides"></div>
+    <p class="note">Heures calculées à partir du modèle de niveau de la mer Open-Meteo (précision ~15–30 min). Pour la navigation, se référer aux annuaires officiels du SHOM.</p>
+  </section>
+  <div style="text-align:center"><button id="refresh">Actualiser</button></div>
+  <p class="note" style="text-align:center">Données : Open-Meteo.com</p>
+</main>
+<script>
+{
+const LAT=44.896,LON=-0.716;
+const SPOTS={lacanau:["Lacanau-Océan",45.00,-1.22],ferret:["Cap Ferret / Arcachon",44.62,-1.28],verdon:["Le Verdon (embouchure Gironde)",45.58,-1.10]};
+const WC={0:["Ciel dégagé","☀️"],1:["Plutôt dégagé","🌤️"],2:["Partiellement nuageux","⛅"],3:["Couvert","☁️"],45:["Brouillard","🌫️"],48:["Brouillard givrant","🌫️"],51:["Bruine légère","🌦️"],53:["Bruine","🌦️"],55:["Bruine forte","🌧️"],56:["Bruine verglaçante","🌧️"],57:["Bruine verglaçante","🌧️"],61:["Pluie faible","🌦️"],63:["Pluie","🌧️"],65:["Forte pluie","🌧️"],66:["Pluie verglaçante","🌧️"],67:["Pluie verglaçante","🌧️"],71:["Neige faible","🌨️"],73:["Neige","🌨️"],75:["Forte neige","❄️"],77:["Grains de neige","🌨️"],80:["Averses","🌦️"],81:["Averses","🌧️"],82:["Fortes averses","⛈️"],85:["Averses de neige","🌨️"],86:["Averses de neige","❄️"],95:["Orage","⛈️"],96:["Orage avec grêle","⛈️"],99:["Orage avec grêle","⛈️"]};
+const wc=c=>WC[c]||["—","❔"];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const hm=d=>d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+const DIRS=["N","NE","E","SE","S","SO","O","NO"];
+const dir=a=>DIRS[Math.round(a/45)%8];
+const parse=s=>new Date(s); // heures locales (timezone=Europe/Paris)
+let store={};try{store=JSON.parse(localStorage.getItem("mm")||"{}")}catch(e){}
+const save=()=>{try{localStorage.setItem("mm",JSON.stringify(store))}catch(e){}};
+
+$("spot").innerHTML=Object.entries(SPOTS).map(([k,v])=>`<option value="${k}">${esc(v[0])}</option>`).join("");
+$("spot").value=store.spot&&SPOTS[store.spot]?store.spot:"lacanau";
+
+async function weather(){
+  const u=`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&timezone=Europe%2FParis&forecast_days=7`+
+    "&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,is_day"+
+    "&hourly=temperature_2m,weather_code,precipitation_probability"+
+    "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset";
+  const j=await (await fetch(u)).json();
+  const c=j.current,[d,i]=wc(c.weather_code);
+  $("nT").textContent=Math.round(c.temperature_2m)+"°";
+  $("nIco").textContent=(!c.is_day&&c.weather_code<=1)?"🌙":i;
+  $("nD").textContent=d;
+  const sr=parse(j.daily.sunrise[0]),ss=parse(j.daily.sunset[0]);
+  $("nF").innerHTML=[`Ressenti ${Math.round(c.apparent_temperature)}°`,`Vent ${Math.round(c.wind_speed_10m)} km/h ${dir(c.wind_direction_10m)}`,`Rafales ${Math.round(c.wind_gusts_10m)} km/h`,`Humidité ${c.relative_humidity_2m} %`,`☀ ${hm(sr)} – ${hm(ss)}`].map(x=>`<span>${esc(x)}</span>`).join("");
+  const now=Date.now(),h=j.hourly;let out=[];
+  for(let k=0;k<h.time.length&&out.length<24;k++){const t=parse(h.time[k]);if(t.getTime()<now-3600e3)continue;
+    out.push(`<div class="h"><div>${out.length?t.getHours()+"h":"Maint."}</div><div class="e">${wc(h.weather_code[k])[1]}</div><b>${Math.round(h.temperature_2m[k])}°</b><div class="p">${h.precipitation_probability[k]>=20?h.precipitation_probability[k]+" %":""}</div></div>`)}
+  $("hours").innerHTML=out.join("");
+  const D=j.daily,mn=Math.min(...D.temperature_2m_min),mx=Math.max(...D.temperature_2m_max),r=mx-mn||1;
+  $("days").innerHTML=D.time.map((t,k)=>{const dt=new Date(t+"T12:00");
+    const lab=k===0?"Aujourd'hui":dt.toLocaleDateString("fr-FR",{weekday:"short",day:"numeric"});
+    const a=(D.temperature_2m_min[k]-mn)/r*100,b=(D.temperature_2m_max[k]-mn)/r*100;
+    const p=D.precipitation_sum[k]>=0.5?` · ${D.precipitation_sum[k].toFixed(1)} mm`:"";
+    return `<div class="day"><div>${esc(lab)}<div class="note" style="margin:0">${D.precipitation_probability_max[k]??0} %${p}</div></div><div style="font-size:24px">${wc(D.weather_code[k])[1]}</div><div class="bar"><i style="left:${a}%;width:${Math.max(b-a,4)}%"></i></div><div class="t"><span>${Math.round(D.temperature_2m_min[k])}°</span> / <b>${Math.round(D.temperature_2m_max[k])}°</b></div></div>`}).join("");
+  $("upd").textContent="mis à jour à "+hm(new Date());
+}
+
+let tideData=null;
+async function tides(){
+  const [,la,lo]=SPOTS[$("spot").value];
+  const u=`https://marine-api.open-meteo.com/v1/marine?latitude=${la}&longitude=${lo}&hourly=sea_level_height_msl&timezone=Europe%2FParis&past_days=1&forecast_days=4&cell_selection=sea`;
+  const j=await (await fetch(u)).json();
+  if(!j.hourly)throw new Error("pas de données de marée");
+  const T=j.hourly.time.map(s=>parse(s).getTime()),Y=j.hourly.sea_level_height_msl;
+  // extrêmes avec interpolation parabolique
+  const ex=[];
+  for(let k=1;k<Y.length-1;k++){const a=Y[k-1],b=Y[k],c=Y[k+1];if(a==null||b==null||c==null)continue;
+    const hi=b>a&&b>=c,lo2=b<a&&b<=c;if(!hi&&!lo2)continue;
+    const den=a-2*b+c,off=den?0.5*(a-c)/den:0;
+    ex.push({t:T[k]+off*3600e3,y:b-0.25*(a-c)*off,hi})}
+  tideData={T,Y,ex};drawCurve();
+  const now=Date.now(),list=ex.filter(e=>e.t>now-3*3600e3).slice(0,10);
+  let lastDay="";
+  $("tides").innerHTML=list.map(e=>{const d=new Date(e.t);const ds=d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric"});
+    const head=ds!==lastDay?ds:"";lastDay=ds;
+    return `<div class="td ${e.hi?"hi":"lo"}"><div>${esc(head||" ")}</div><b>${hm(d)}</b><div>${e.hi?"Pleine mer":"Basse mer"} · ${e.y.toFixed(2)} m</div></div>`}).join("")||`<p class="note">Aucune donnée.</p>`;
+}
+
+function drawCurve(){
+  const s=$("curve");if(!tideData)return;const W=s.clientWidth,H=s.clientHeight;if(!W)return;
+  const now=Date.now(),t0=now-3*3600e3,t1=now+27*3600e3;
+  const pts=tideData.T.map((t,k)=>[t,tideData.Y[k]]).filter(p=>p[0]>=t0-3600e3&&p[0]<=t1+3600e3&&p[1]!=null);
+  if(pts.length<2){s.innerHTML="";return}
+  const ys=pts.map(p=>p[1]),mn=Math.min(...ys)-.2,mx=Math.max(...ys)+.2;
+  const X=t=>(t-t0)/(t1-t0)*W,Yp=y=>H-22-(y-mn)/(mx-mn)*(H-40);
+  const path=pts.map((p,k)=>(k?"L":"M")+X(p[0]).toFixed(1)+","+Yp(p[1]).toFixed(1)).join("");
+  let ticks="";for(let t=Math.ceil(t0/36e5/6)*6*36e5;t<t1;t+=6*36e5){const x=X(t),hh=new Date(t).getHours();
+    ticks+=`<line x1="${x}" x2="${x}" y1="0" y2="${H-18}" stroke="var(--line)"/><text x="${x}" y="${H-4}" font-size="11" text-anchor="middle" fill="var(--mute)">${hh}h</text>`}
+  const marks=tideData.ex.filter(e=>e.t>t0&&e.t<t1).map(e=>`<circle cx="${X(e.t)}" cy="${Yp(e.y)}" r="4" fill="${e.hi?"#0b6e99":"#9bb8c6"}"/><text x="${X(e.t)}" y="${Yp(e.y)+(e.hi?-9:17)}" font-size="11" font-weight="600" text-anchor="middle" fill="var(--ink)">${hm(new Date(e.t))}</text>`).join("");
+  const nx=X(now);
+  s.innerHTML=`<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b6e99" stop-opacity=".45"/><stop offset="1" stop-color="#0b6e99" stop-opacity=".05"/></linearGradient></defs>${ticks}<path d="${path}L${W},${H-18}L0,${H-18}Z" fill="url(#g)"/><path d="${path}" fill="none" stroke="#0b6e99" stroke-width="2.5"/><line x1="${nx}" x2="${nx}" y1="6" y2="${H-18}" stroke="#ffb627" stroke-width="2" stroke-dasharray="4 3"/><text x="${nx+4}" y="14" font-size="11" fill="#d98e00">maintenant</text>${marks}`;
+}
+const ro=new ResizeObserver(drawCurve);ro.observe($("curve"));
+
+async function load(){
+  $("upd").textContent="chargement…";
+  try{await weather()}catch(e){$("nD").innerHTML=`<span class="err">Météo indisponible (connexion ?)</span>`;$("upd").textContent="erreur"}
+  try{await tides()}catch(e){$("tides").innerHTML=`<p class="note err">Marées indisponibles.</p>`}
+}
+$("spot").addEventListener("change",()=>{store.spot=$("spot").value;save();tides().catch(()=>{$("tides").innerHTML=`<p class="note err">Marées indisponibles.</p>`})});
+$("refresh").addEventListener("click",load);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)load()});
+load();
+}
+</script>
+</body>
+</html>

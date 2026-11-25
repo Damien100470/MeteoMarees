@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="deep">#0B3A53</color>
+    <color name="sea">#0B6E99</color>
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/deep</item>
+        <item name="android:navigationBarColor">@color/deep</item>
+        <item name="android:windowBackground">@color/deep</item>
+    </style>
+</resources>
